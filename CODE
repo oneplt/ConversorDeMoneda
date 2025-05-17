@@ -1,0 +1,196 @@
+import com.google.gson.Gson;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.Scanner;
+
+public class ConversorMonedas {
+
+    private static final String API_KEY = "1d7a1dbc4a195b033f57c731";
+    private static final String BASE_URL = "https://v6.exchangerate-api.com/v6/" + API_KEY + "/latest/USD";
+
+    private static class ExchangeRateResponse {
+        String result;
+        String documentation;
+        String terms_of_use;
+        long time_last_update_unix;
+        String time_last_update_utc;
+        long time_next_update_unix;
+        String time_next_update_utc;
+        String base_code;
+        ConversionRate conversion_rates;
+
+        static class ConversionRate {
+            double ARS; // Peso argentino
+            double BOB; // Boliviano
+            double BRL; // Real brasileño
+            double CLP; // Peso chileno
+            double COP; // Peso colombiano
+            double USD; // Dólar estadounidense
+        }
+    }
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        HttpClient client = HttpClient.newHttpClient();
+
+        System.out.println("CONVERSOR DE MONEDAS LATINOAMERICANAS");
+        System.out.println("--------------------------------------");
+        System.out.println("Fuente: ExchangeRate-API.com");
+        System.out.println("Monedas disponibles: ARS, BOB, BRL, CLP, COP, USD\n");
+
+        while (true) {
+            try {
+                System.out.println("\nOpciones disponibles:");
+                System.out.println("1. Convertir de USD a otra moneda");
+                System.out.println("2. Convertir de otra moneda a USD");
+                System.out.println("3. Ver tasas de cambio actuales");
+                System.out.println("4. Salir");
+                System.out.print("Seleccione una opción: ");
+
+                int opcion = scanner.nextInt();
+                scanner.nextLine(); // Limpiar buffer
+
+                if (opcion == 4) {
+                    System.out.println("¡Gracias por usar el conversor!");
+                    break;
+                }
+
+                if (opcion < 1 || opcion > 4) {
+                    System.out.println("Opción no válida. Intente nuevamente.");
+                    continue;
+                }
+
+                if (opcion == 3) {
+                    mostrarTasasActuales(client);
+                    continue;
+                }
+
+                System.out.print("Ingrese la cantidad a convertir: ");
+                double cantidad = scanner.nextDouble();
+                scanner.nextLine(); // Limpiar buffer
+
+                ExchangeRateResponse rates = obtenerTasasDeCambio(client);
+                if (rates == null) {
+                    System.out.println("Error al obtener las tasas de cambio. Intente más tarde.");
+                    continue;
+                }
+
+                System.out.println("\nMonedas disponibles:");
+                System.out.println("1. ARS - Peso argentino");
+                System.out.println("2. BOB - Boliviano boliviano");
+                System.out.println("3. BRL - Real brasileño");
+                System.out.println("4. CLP - Peso chileno");
+                System.out.println("5. COP - Peso colombiano");
+                System.out.println("6. USD - Dólar estadounidense");
+                System.out.print("Seleccione la moneda: ");
+
+                int moneda = scanner.nextInt();
+                scanner.nextLine(); // Limpiar buffer
+
+                if (moneda < 1 || moneda > 6) {
+                    System.out.println("Moneda no válida.");
+                    continue;
+                }
+
+                realizarConversion(opcion, cantidad, moneda, rates);
+
+            } catch (Exception e) {
+                System.out.println("Error: " + e.getMessage());
+                scanner.nextLine(); // Limpiar buffer en caso de error
+            }
+        }
+        scanner.close();
+    }
+
+    private static void realizarConversion(int opcion, double cantidad, int moneda, ExchangeRateResponse rates) {
+        String monedaDestino = "";
+        String simboloMoneda = "";
+        double tasa = 0;
+
+        switch (moneda) {
+            case 1:
+                tasa = rates.conversion_rates.ARS;
+                monedaDestino = "ARS";
+                simboloMoneda = "$";
+                break;
+            case 2:
+                tasa = rates.conversion_rates.BOB;
+                monedaDestino = "BOB";
+                simboloMoneda = "Bs";
+                break;
+            case 3:
+                tasa = rates.conversion_rates.BRL;
+                monedaDestino = "BRL";
+                simboloMoneda = "R$";
+                break;
+            case 4:
+                tasa = rates.conversion_rates.CLP;
+                monedaDestino = "CLP";
+                simboloMoneda = "$";
+                break;
+            case 5:
+                tasa = rates.conversion_rates.COP;
+                monedaDestino = "COP";
+                simboloMoneda = "$";
+                break;
+            case 6:
+                tasa = rates.conversion_rates.USD;
+                monedaDestino = "USD";
+                simboloMoneda = "$";
+                break;
+        }
+
+        double resultado = 0;
+        if (opcion == 1) {
+            resultado = cantidad * tasa;
+            System.out.printf("\n%.2f USD = %s%.2f %s%n", cantidad, simboloMoneda, resultado, monedaDestino);
+        } else {
+            resultado = cantidad / tasa;
+            System.out.printf("\n%s%.2f %s = %.2f USD%n", simboloMoneda, cantidad, monedaDestino, resultado);
+        }
+
+        System.out.println("\nTasa de cambio actual:");
+        System.out.printf("1 USD = %s%.4f %s%n", simboloMoneda, tasa, monedaDestino);
+        System.out.printf("1 %s = %.6f USD%n", monedaDestino, 1/tasa);
+    }
+
+    private static void mostrarTasasActuales(HttpClient client) {
+        ExchangeRateResponse rates = obtenerTasasDeCambio(client);
+        if (rates == null) {
+            System.out.println("No se pudieron obtener las tasas actuales!");
+            return;
+        }
+
+        System.out.println("\nTasas de cambio actuales (base USD): ");
+        System.out.printf("1 USD = $%.2f ARS (Peso argentino)%n", rates.conversion_rates.ARS);
+        System.out.printf("1 USD = Bs%.2f BOB (Boliviano boliviano)%n", rates.conversion_rates.BOB);
+        System.out.printf("1 USD = R$%.2f BRL (Real brasileño)%n", rates.conversion_rates.BRL);
+        System.out.printf("1 USD = $%.2f CLP (Peso chileno)%n", rates.conversion_rates.CLP);
+        System.out.printf("1 USD = $%.2f COP (Peso colombiano)%n", rates.conversion_rates.COP);
+        System.out.println("\nÚltima actualización: " + rates.time_last_update_utc);
+        System.out.println("Próxima actualización: " + rates.time_next_update_utc);
+    }
+
+    private static ExchangeRateResponse obtenerTasasDeCambio(HttpClient client) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(BASE_URL))
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 200) {
+                Gson gson = new Gson();
+                return gson.fromJson(response.body(), ExchangeRateResponse.class);
+            } else {
+                System.out.println("Error en la API: Código " + response.statusCode());
+                return null;
+            }
+        } catch (Exception e) {
+            System.out.println("Error de conexión: " + e.getMessage());
+            return null;
+        }
+    }
+}
